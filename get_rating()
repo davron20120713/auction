@@ -1,0 +1,12 @@
+def get_rating(self):
+    conn = sqlite3.connect(self.database)
+    with conn:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT username, COUNT(*) as prize_count
+            FROM winners
+            GROUP BY username
+            ORDER BY prize_count DESC
+            LIMIT 10
+        ''')
+        return cur.fetchall()
