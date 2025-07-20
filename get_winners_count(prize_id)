@@ -1,0 +1,8 @@
+def get_winners_count(self, prize_id):
+    conn = sqlite3.connect(self.database)
+    with conn:
+        cur = conn.cursor()
+        cur.execute('''
+            SELECT COUNT(*) FROM winners WHERE prize_id = ?
+        ''', (prize_id,))
+        return cur.fetchone()[0]
