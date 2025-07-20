@@ -3,7 +3,9 @@ from datetime import datetime
 from config import DATABASE
 import os
 import cv2
+import numpy as np
 import random
+from math import sqrt, ceil, floor
 
 class DatabaseManager:
     def __init__(self, database):
@@ -100,9 +102,7 @@ class DatabaseManager:
         conn = sqlite3.connect(self.database)
         with conn:
             cur = conn.cursor()
-            cur.execute('''
-                SELECT COUNT(*) FROM winners WHERE prize_id = ?
-            ''', (prize_id,))
+            cur.execute('SELECT COUNT(*) FROM winners WHERE prize_id = ?', (prize_id,))
             return cur.fetchone()[0]
 
     def get_rating(self):
@@ -119,6 +119,17 @@ class DatabaseManager:
             ''')
             return cur.fetchall()
 
+    def get_winners_img(self, user_id):
+        conn = sqlite3.connect(self.database)
+        with conn:
+            cur = conn.cursor()
+            cur.execute('''
+                SELECT image FROM winners 
+                INNER JOIN prizes ON winners.prize_id = prizes.prize_id
+                WHERE user_id = ?
+            ''', (user_id,))
+            return cur.fetchall()
+
 def hide_img(img_name):
     image = cv2.imread(f'img/{img_name}')
     blurred_image = cv2.GaussianBlur(image, (15, 15), 0)
@@ -127,21 +138,38 @@ def hide_img(img_name):
     os.makedirs('hidden_img', exist_ok=True)
     cv2.imwrite(f'hidden_img/{img_name}', pixelated_image)
 
+def create_collage(image_paths):
+    images = []
+    for path in image_paths:
+        image = cv2.imread(path)
+        images.append(image)
+
+    num_images = len(images)
+    num_cols = floor(sqrt(num_images))
+    num_rows = ceil(num_images / num_cols)
+
+    h, w = images[0].shape[:2]
+    collage = np.zeros((num_rows * h, num_cols * w, 3), dtype=np.uint8)
+
+    for i, image in enumerate(images):
+        row = i // num_cols
+        col = i % num_cols
+        collage[row*h:(row+1)*h, col*w:(col+1)*w, :] = image
+
+    return collage
+
 if __name__ == '__main__':
     manager = DatabaseManager(DATABASE)
     manager.create_tables()
 
-    # Добавляем призы, если они еще не добавлены
     prizes_img = os.listdir('img')
     data = [(x,) for x in prizes_img]
 
-    # Проверка: не добавлять повторно уже имеющиеся изображения
     conn = sqlite3.connect(DATABASE)
     existing = set(row[0] for row in conn.execute('SELECT image FROM prizes'))
     new_data = [d for d in data if d[0] not in existing]
     if new_data:
         manager.add_prize(new_data)
 
-    # Генерация скрытых изображений
     for img in prizes_img:
         hide_img(img)
